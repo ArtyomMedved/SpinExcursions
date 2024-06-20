@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image, Alert } from 'react-native';
-import MapView from 'react-native-maps';
+import MapView, { Marker } from 'react-native-maps';
 import Modal from 'react-native-modal';
 import * as Location from 'expo-location';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
-import uuid from 'uuid-js'; // Используем uuid-js для генерации UUID
+import MapViewDirections from 'react-native-maps-directions';
+import uuid from 'uuid-js';
 
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -13,6 +14,7 @@ const LATITUDE_DELTA = 0.0422;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
 const OPENWEATHER_API_KEY = 'a1d3e04065ee9b6bbf351467362cfdf5';
+const GOOGLE_MAPS_APIKEY = 'AIzaSyChiFJsHXD6u1ymneTtBMFC5JlYs_sX6hY';
 
 const MapScreen = () => {
   const [location, setLocation] = useState(null);
@@ -20,11 +22,89 @@ const MapScreen = () => {
   const [errorMsg, setErrorMsg] = useState(null);
   const [isModalVisible, setModalVisible] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState({});
-  const [timer, setTimer] = useState(0); // Счетчик секундомера (в секундах)
-  const [earnings, setEarnings] = useState(0); // Счетчик рублей
-  const [showConfirmation, setShowConfirmation] = useState(false); // Видимость модального окна подтверждения
+  const [timer, setTimer] = useState(0);
+  const [earnings, setEarnings] = useState(0);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [origin, setOrigin] = useState(null);
+  const [destination, setDestination] = useState(null);
+  const [isRouteVisible, setIsRouteVisible] = useState(false);
   const navigation = useNavigation();
   const mapRef = useRef(null);
+
+  const attractions = [
+    {
+      id: 1,
+      title: 'парк культуры и отдыха имени Горького',
+      coordinates: {
+        latitude: 54.608500,
+        longitude: 52.448803,
+      },
+    },
+    {
+      id: 2,
+      title: 'озеро Нижнее',
+      coordinates: {
+        latitude: 54.605976,
+        longitude: 52.455149,
+      },
+    },
+    {
+      id: 3,
+      title: 'парк Мэхэббэт',
+      coordinates: {
+        latitude: 54.606630,
+        longitude: 52.461796,
+      },
+    },
+    {
+      id: 4,
+      title: 'Фантан нефти',
+      coordinates: {
+        latitude: 54.604793,
+        longitude: 52.451907,
+      },
+    },
+    {
+      id: 5,
+      title: 'озеро Верхнее',
+      coordinates: {
+        latitude: 54.603199,
+        longitude: 52.432841,
+      },
+    },
+    {
+      id: 6,
+      title: 'Вечный огонь',
+      coordinates: {
+        latitude: 54.602850,
+        longitude: 52.455575,
+      },
+    },
+    {
+      id: 7,
+      title: 'Парк Победы',
+      coordinates: {
+        latitude: 54.601189,
+        longitude: 52.458581,
+      },
+    },
+    {
+      id: 8,
+      title: 'парк Юбилейный',
+      coordinates: {
+        latitude: 54.596617,
+        longitude: 52.454705,
+      },
+    },
+    {
+      id: 9,
+      title: 'Центральная аллея',
+      coordinates: {
+        latitude: 54.602428,
+        longitude: 52.448443,
+      },
+    },
+  ];
 
   useEffect(() => {
     (async () => {
@@ -69,10 +149,7 @@ const MapScreen = () => {
 
   useEffect(() => {
     const timerInterval = setInterval(() => {
-      // Увеличиваем таймер на 1 секунду
       setTimer((prevTimer) => prevTimer + 1);
-
-      // Каждую минуту добавляем 5 рублей к заработку
       if (timer % 60 === 0) {
         setEarnings((prevEarnings) => prevEarnings + 5);
       }
@@ -99,6 +176,15 @@ const MapScreen = () => {
 
   const handleMarkerPress = (location) => {
     setSelectedLocation(location);
+    setOrigin({
+      latitude: location.coordinates.latitude,
+      longitude: location.coordinates.longitude,
+    });
+    setDestination({
+      latitude: location.coordinates.latitude,
+      longitude: location.coordinates.longitude,
+    });
+    setIsRouteVisible(true);
     toggleModal();
   };
 
@@ -131,7 +217,7 @@ const MapScreen = () => {
   const confirmFinishTrip = async () => {
     setShowConfirmation(false);
     try {
-      const idempotenceKey = uuid.create().toString(); // Генерируем новый UUID
+      const idempotenceKey = uuid.create().toString();
 
       const response = await axios.post('https://api.yookassa.ru/v3/payments', {
         amount: {
@@ -140,21 +226,22 @@ const MapScreen = () => {
         },
         confirmation: {
           type: 'redirect',
-          return_url: 'https://ya.ru/?clid=1955454&win=644', // замените на ваш URL возврата
+          return_url: 'https://ya.ru/?clid=1955454&win=644',
         },
         capture: true,
         description: 'Оплата поездки',
       }, {
         headers: {
           'Content-Type': 'application/json',
-          'Idempotence-Key': idempotenceKey, // замените на ваш уникальный ключ
+          'Idempotence-Key': idempotenceKey,
         },
         auth: {
-          username: '401474', // замените на ваш идентификатор магазина
-          password: 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY', // замените на ваш секретный ключ
+          username: '401474',
+          password: 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY',
         },
       });
       Alert.alert('Успешно', 'Оплата прошла успешно');
+      navigation.push("menu")
     } catch (error) {
       console.error('Ошибка при оплате', error);
       Alert.alert('Ошибка', 'Не удалось завершить оплату. Попробуйте еще раз.');
@@ -177,9 +264,9 @@ const MapScreen = () => {
       <MapView
         ref={mapRef}
         style={styles.map}
-        region={{
-          latitude: location?.coords.latitude || 37.78825,
-          longitude: location?.coords.longitude || -122.4324,
+        initialRegion={{
+          latitude: 55.732399,
+          longitude: 52.454630,
           latitudeDelta: LATITUDE_DELTA,
           longitudeDelta: LONGITUDE_DELTA,
         }}
@@ -188,10 +275,30 @@ const MapScreen = () => {
         scrollEnabled={true}
         pitchEnabled={true}
         rotateEnabled={true}
-      />
+      >
+        {attractions.map((attraction) => (
+          <Marker
+            key={attraction.id}
+            coordinate={attraction.coordinates}
+            title={attraction.title}
+            onPress={() => handleMarkerPress(attraction)}
+          />
+        ))}
+        {isRouteVisible && origin && destination && (
+          <MapViewDirections
+            origin={origin}
+            destination={destination}
+            apikey={GOOGLE_MAPS_APIKEY}
+            strokeWidth={3}
+            strokeColor="hotpink"
+          />
+        )}
+      </MapView>
+
       <TouchableOpacity style={styles.locationButton} onPress={goToCurrentLocation}>
         <Text style={styles.locationButtonText}>Где я?</Text>
       </TouchableOpacity>
+
       <View style={styles.timerContainer}>
         <Text style={styles.timerText}>{formatTime(timer)}</Text>
         <Text style={styles.timerText}>{`Сумма: ${earnings} рублей`}</Text>
@@ -199,6 +306,7 @@ const MapScreen = () => {
           <Text style={styles.finishButtonText}>Завершить поездку</Text>
         </TouchableOpacity>
       </View>
+
       {weather && (
         <View style={styles.weatherContainer}>
           <Text style={styles.weatherText}>Погода</Text>
@@ -209,19 +317,17 @@ const MapScreen = () => {
           />
         </View>
       )}
+
       {showConfirmation && (
         <Modal isVisible={showConfirmation}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Завершить поездку?</Text>
+          <View style={styles.modalContainer}>
             <Text style={styles.modalText}>Вы уверены, что хотите завершить поездку?</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.confirmButton} onPress={confirmFinishTrip}>
-                <Text style={styles.confirmButtonText}>Да</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.cancelButton} onPress={cancelFinishTrip}>
-                <Text style={styles.cancelButtonText}>Нет</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.confirmButton} onPress={confirmFinishTrip}>
+              <Text style={styles.confirmButtonText}>Да</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelButton} onPress={cancelFinishTrip}>
+              <Text style={styles.cancelButtonText}>Отмена</Text>
+            </TouchableOpacity>
           </View>
         </Modal>
       )}
@@ -232,7 +338,7 @@ const MapScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
   },
   map: {
     ...StyleSheet.absoluteFillObject,
@@ -266,7 +372,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 35,
     right: 10,
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     padding: 6,
     borderRadius: 10,
     alignItems: 'center',
@@ -284,7 +390,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
   },
-  modalContent: {
+  modalContainer: {
     backgroundColor: 'white',
     padding: 20,
     borderRadius: 10,
@@ -302,35 +408,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
   },
+  modalAddress: {
+    marginBottom: 10,
+    color: 'gray',
+  },
   modalText: {
     fontSize: 16,
     marginBottom: 20,
   },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  confirmButton: {
+  modalButton: {
     backgroundColor: 'blue',
     padding: 10,
     borderRadius: 20,
     alignItems: 'center',
-    flex: 1,
-    marginRight: 5,
+    marginTop: 10,
   },
-  confirmButtonText: {
-    color: 'white',
-    fontSize: 16,
-  },
-  cancelButton: {
-    backgroundColor: 'gray',
-    padding: 10,
-    borderRadius: 20,
-    alignItems: 'center',
-    flex: 1,
-    marginLeft: 5,
-  },
-  cancelButtonText: {
+  modalButtonText: {
     color: 'white',
     fontSize: 16,
   },
