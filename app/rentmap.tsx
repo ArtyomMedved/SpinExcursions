@@ -7,6 +7,7 @@ import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import MapViewDirections from 'react-native-maps-directions';
 import uuid from 'uuid-js';
+import { router } from 'expo-router';
 
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -176,24 +177,12 @@ const MapScreen = () => {
 
   const handleMarkerPress = (location) => {
     setSelectedLocation(location);
-    setOrigin({
-      latitude: location.coordinates.latitude,
-      longitude: location.coordinates.longitude,
-    });
     setDestination({
       latitude: location.coordinates.latitude,
       longitude: location.coordinates.longitude,
     });
     setIsRouteVisible(true);
     toggleModal();
-  };
-
-  const handleModalPress = () => {
-    toggleModal();
-    navigation.navigate('LocationDetails', {
-      title: selectedLocation.title,
-      street: selectedLocation.street,
-    });
   };
 
   const goToCurrentLocation = () => {
@@ -241,7 +230,7 @@ const MapScreen = () => {
         },
       });
       Alert.alert('Успешно', 'Оплата прошла успешно');
-      navigation.push("menu")
+      router.push("(menu)")
     } catch (error) {
       console.error('Ошибка при оплате', error);
       Alert.alert('Ошибка', 'Не удалось завершить оплату. Попробуйте еще раз.');
@@ -284,159 +273,167 @@ const MapScreen = () => {
             onPress={() => handleMarkerPress(attraction)}
           />
         ))}
-        {isRouteVisible && origin && destination && (
+        {isRouteVisible && location && destination && (
           <MapViewDirections
-            origin={origin}
+            origin={{
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            }}
             destination={destination}
             apikey={GOOGLE_MAPS_APIKEY}
-            strokeWidth={3}
-            strokeColor="hotpink"
+            strokeWidth={5}
+            strokeColor="blue"
           />
         )}
       </MapView>
 
       <TouchableOpacity style={styles.locationButton} onPress={goToCurrentLocation}>
-        <Text style={styles.locationButtonText}>Где я?</Text>
+      <Text style={styles.locationButtonText}>Где я?</Text>
       </TouchableOpacity>
 
-      <View style={styles.timerContainer}>
+      <View style={styles.weatherContainer}>
+        <Text style={styles.weatherText}>
+          Погода {weather ? `${weather.main.temp}°C` : 'Загрузка...'}
+        </Text>
+      </View>
+
+      <View style={styles.earningsContainer}>
+        <Text style={styles.earningsText}>Сумма: {earnings} рублей</Text>
         <Text style={styles.timerText}>{formatTime(timer)}</Text>
-        <Text style={styles.timerText}>{`Сумма: ${earnings} рублей`}</Text>
         <TouchableOpacity style={styles.finishButton} onPress={finishTrip}>
           <Text style={styles.finishButtonText}>Завершить поездку</Text>
         </TouchableOpacity>
       </View>
 
-      {weather && (
-        <View style={styles.weatherContainer}>
-          <Text style={styles.weatherText}>Погода</Text>
-          <Text style={styles.weatherTemp}>{weather.main.temp}°C</Text>
-          <Image
-            style={styles.weatherIcon}
-            source={{ uri: `http://openweathermap.org/img/w/${weather.weather[0].icon}.png` }}
-          />
-        </View>
-      )}
-
-      {showConfirmation && (
-        <Modal isVisible={showConfirmation}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalText}>Вы уверены, что хотите завершить поездку?</Text>
+      <Modal isVisible={showConfirmation}>
+        <View style={styles.confirmationContainer}>
+          <Text style={styles.confirmationText}>Завершить поездку и оплатить {earnings} рублей?</Text>
+          <View style={styles.confirmationButtons}>
             <TouchableOpacity style={styles.confirmButton} onPress={confirmFinishTrip}>
               <Text style={styles.confirmButtonText}>Да</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancelButton} onPress={cancelFinishTrip}>
-              <Text style={styles.cancelButtonText}>Отмена</Text>
+              <Text style={styles.cancelButtonText}>Нет</Text>
             </TouchableOpacity>
           </View>
-        </Modal>
-      )}
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#fff',
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   map: {
     ...StyleSheet.absoluteFillObject,
   },
   locationButton: {
     position: 'absolute',
-    bottom: 30,
-    right: 10,
+    bottom: 50,
+    right: 20,
     backgroundColor: 'blue',
     padding: 10,
     borderRadius: 20,
   },
   locationButtonText: {
     color: 'white',
-    fontSize: 16,
-  },
-  timerContainer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
-  },
-  timerText: {
-    color: 'white',
-    fontSize: 16,
+    fontWeight: 'bold',
   },
   weatherContainer: {
     position: 'absolute',
-    top: 35,
-    right: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    padding: 6,
+    top: 50,
+    right: 20,
+    backgroundColor: 'white',
+    padding: 10,
     borderRadius: 10,
-    alignItems: 'center',
   },
   weatherText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 5,
   },
-  weatherTemp: {
-    fontSize: 16,
-    marginBottom: 5,
-  },
-  weatherIcon: {
-    width: 60,
-    height: 60,
-  },
-  modalContainer: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  modalAddress: {
-    marginBottom: 10,
-    color: 'gray',
-  },
-  modalText: {
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  modalButton: {
-    backgroundColor: 'blue',
+  earningsContainer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 5,
+    backgroundColor: 'rgba(255,255,255,0.8)',
     padding: 10,
-    borderRadius: 20,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 10,
   },
-  modalButtonText: {
-    color: 'white',
+  earningsText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  timerText: {
     fontSize: 16,
+    marginTop: 5,
   },
   finishButton: {
+    marginTop: 10,
     backgroundColor: 'red',
     padding: 10,
-    borderRadius: 20,
-    alignItems: 'center',
-    marginTop: 10,
+    borderRadius: 10,
   },
   finishButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    marginBottom: 10,
+  },
+  closeButton: {
+    marginTop: 10,
+    backgroundColor: 'blue',
+    padding: 10,
+    borderRadius: 10,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  confirmationContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  confirmationText: {
+    fontSize: 18,
+    marginBottom: 20,
+  },
+  confirmationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '80%',
+  },
+  confirmButton: {
+    backgroundColor: 'green',
+    padding: 10,
+    borderRadius: 10,
+    marginRight: 10,
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  cancelButton: {
+    backgroundColor: 'red',
+    padding: 10,
+    borderRadius: 10,
+  },
+  cancelButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
 });
 
