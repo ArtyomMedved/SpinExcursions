@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Button, Image, Alert } from 'react-native';
-import { useLocalSearchParams, useNavigation, router } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Button, Image, Alert, Linking } from 'react-native';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import uuid from 'uuid-js'; // Используем uuid-js для генерации UUID
@@ -22,6 +22,29 @@ export default function LocationDetailsScreen() {
     { id: '3', name: 'Скутер 3', image: require('/Users/artemmedvedev/Desktop/SpinExcursions/assets/scooter.png') },
     { id: '4', name: 'Скутер 4', image: require('/Users/artemmedvedev/Desktop/SpinExcursions/assets/scooter.png') },
   ];
+
+  useEffect(() => {
+    const handleDeepLink = async (event) => {
+      let data = await Linking.parse(event.url);
+      if (data && data.scheme === 'spinexapp' && data.host === 'callback') {
+        // Перейти на экран карты
+        router.push('rentmap');
+      }
+    };
+
+    Linking.addEventListener('url', handleDeepLink);
+
+    // Обработчик для открытия URL сразу при запуске приложения
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      Linking.removeEventListener('url', handleDeepLink);
+    };
+  }, []);
 
   const handleScooterPress = (scooter) => {
     setSelectedScooter(scooter);
@@ -58,10 +81,7 @@ export default function LocationDetailsScreen() {
 
       const paymentUrl = response.data.confirmation.confirmation_url;
       setModalVisible(false);
-      router.push({
-        pathname: 'PaymentWebView',
-        params: { url: paymentUrl },
-      });
+      navigation.push('PaymentWebView', { url: paymentUrl });
     } catch (error) {
       console.error('Error creating payment:', error);
       Alert.alert('Ошибка', 'Не удалось создать платеж');
