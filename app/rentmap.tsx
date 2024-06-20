@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image, Alert } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView from 'react-native-maps';
 import Modal from 'react-native-modal';
 import * as Location from 'expo-location';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
+import uuid from 'uuid-js'; // Используем uuid-js для генерации UUID
 
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -21,6 +22,7 @@ const MapScreen = () => {
   const [selectedLocation, setSelectedLocation] = useState({});
   const [timer, setTimer] = useState(0); // Счетчик секундомера (в секундах)
   const [earnings, setEarnings] = useState(0); // Счетчик рублей
+  const [showConfirmation, setShowConfirmation] = useState(false); // Видимость модального окна подтверждения
   const navigation = useNavigation();
   const mapRef = useRef(null);
 
@@ -122,38 +124,53 @@ const MapScreen = () => {
     }
   };
 
-  const markers = [
-    {
-      id: 1,
-      coordinate: { latitude: 54.599060, longitude: 52.447626 },
-      title: 'Площадь Ленина',
-      street: 'Улица: площадь Ленина, Лениногорск, Республика Татарстан'
-    },
-    {
-      id: 2,
-      coordinate: { latitude: 54.596539, longitude: 52.454104 },
-      title: 'Парк Юбилейный',
-      street: 'Республика Татарстан, Лениногорск, парк Юбилейный'
-    },
-    {
-      id: 3,
-      coordinate: { latitude: 54.606076, longitude: 52.454188 },
-      title: 'Лагуна',
-      street: 'Республика Татарстан, Лениногорск, улица Булгакова'
-    },
-    {
-      id: 4,
-      coordinate: { latitude: 54.606720, longitude: 52.461817 },
-      title: 'Парк Мэхэббэт',
-      street: 'Республика Татарстан, Лениногорск, парк Мэхэббэт'
-    },
-    {
-      id: 5,
-      coordinate: { latitude: 54.596377, longitude: 52.434611 },
-      title: '37-й квартал',
-      street: '37-й квартал, Лениногорск, Республика Татарстан'
+  const finishTrip = () => {
+    setShowConfirmation(true);
+  };
+
+  const confirmFinishTrip = async () => {
+    setShowConfirmation(false);
+    try {
+      const idempotenceKey = uuid.create().toString(); // Генерируем новый UUID
+
+      const response = await axios.post('https://api.yookassa.ru/v3/payments', {
+        amount: {
+          value: earnings.toString(),
+          currency: 'RUB',
+        },
+        confirmation: {
+          type: 'redirect',
+          return_url: 'https://ya.ru/?clid=1955454&win=644', // замените на ваш URL возврата
+        },
+        capture: true,
+        description: 'Оплата поездки',
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotence-Key': idempotenceKey, // замените на ваш уникальный ключ
+        },
+        auth: {
+          username: '401474', // замените на ваш идентификатор магазина
+          password: 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY', // замените на ваш секретный ключ
+        },
+      });
+      Alert.alert('Успешно', 'Оплата прошла успешно');
+    } catch (error) {
+      console.error('Ошибка при оплате', error);
+      Alert.alert('Ошибка', 'Не удалось завершить оплату. Попробуйте еще раз.');
     }
-  ];
+  };
+
+  const cancelFinishTrip = () => {
+    setShowConfirmation(false);
+  };
+
+  const formatTime = (seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   return (
     <View style={styles.container}>
@@ -171,48 +188,43 @@ const MapScreen = () => {
         scrollEnabled={true}
         pitchEnabled={true}
         rotateEnabled={true}
-      >
-        {markers.map((marker) => (
-          <Marker
-            key={marker.id}
-            coordinate={marker.coordinate}
-            onPress={() => handleMarkerPress({
-              title: marker.title,
-              street: marker.street,
-            })}
-          >
-            <Image source={require('../assets/marker.png')} style={styles.markerImage} />
-          </Marker>
-        ))}
-      </MapView>
+      />
       <TouchableOpacity style={styles.locationButton} onPress={goToCurrentLocation}>
         <Text style={styles.locationButtonText}>Где я?</Text>
       </TouchableOpacity>
       <View style={styles.timerContainer}>
-        <Text style={styles.timerText}>{`${Math.floor(timer / 60)}:${timer % 60 < 10 ? '0' : ''}${timer % 60}`}</Text>
+        <Text style={styles.timerText}>{formatTime(timer)}</Text>
         <Text style={styles.timerText}>{`Сумма: ${earnings} рублей`}</Text>
+        <TouchableOpacity style={styles.finishButton} onPress={finishTrip}>
+          <Text style={styles.finishButtonText}>Завершить поездку</Text>
+        </TouchableOpacity>
       </View>
       {weather && (
         <View style={styles.weatherContainer}>
-          <Text style={styles.weatherText}>{weather.name}</Text>
-          <Text style={styles.weatherTemp}>{`${weather.main.temp}°C`}</Text>
+          <Text style={styles.weatherText}>Погода</Text>
+          <Text style={styles.weatherTemp}>{weather.main.temp}°C</Text>
           <Image
-            source={{
-              uri: `https://openweathermap.org/img/wn/${weather.weather[0].icon}@2x.png`,
-            }}
             style={styles.weatherIcon}
+            source={{ uri: `http://openweathermap.org/img/w/${weather.weather[0].icon}.png` }}
           />
         </View>
       )}
-      <Modal isVisible={isModalVisible} onBackdropPress={toggleModal}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{selectedLocation.title}</Text>
-          <Text style={styles.modalStreet}>{selectedLocation.street}</Text>
-          <TouchableOpacity style={styles.moreInfoButton} onPress={handleModalPress}>
-            <Text style={styles.moreInfoButtonText}>Подробнее</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+      {showConfirmation && (
+        <Modal isVisible={showConfirmation}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Завершить поездку?</Text>
+            <Text style={styles.modalText}>Вы уверены, что хотите завершить поездку?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.confirmButton} onPress={confirmFinishTrip}>
+                <Text style={styles.confirmButtonText}>Да</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelButton} onPress={cancelFinishTrip}>
+                <Text style={styles.cancelButtonText}>Нет</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
@@ -227,7 +239,7 @@ const styles = StyleSheet.create({
   },
   locationButton: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 30,
     right: 10,
     backgroundColor: 'blue',
     padding: 10,
@@ -239,7 +251,7 @@ const styles = StyleSheet.create({
   },
   timerContainer: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 30,
     left: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     paddingVertical: 8,
@@ -290,25 +302,48 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
   },
-  modalStreet: {
+  modalText: {
     fontSize: 16,
-    color: 'gray',
     marginBottom: 20,
   },
-  moreInfoButton: {
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  confirmButton: {
     backgroundColor: 'blue',
     padding: 10,
     borderRadius: 20,
     alignItems: 'center',
+    flex: 1,
+    marginRight: 5,
   },
-  moreInfoButtonText: {
+  confirmButtonText: {
     color: 'white',
     fontSize: 16,
   },
-  markerImage: {
-    width: 30,
-    height: 30,
-    resizeMode: 'contain',
+  cancelButton: {
+    backgroundColor: 'gray',
+    padding: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    flex: 1,
+    marginLeft: 5,
+  },
+  cancelButtonText: {
+    color: 'white',
+    fontSize: 16,
+  },
+  finishButton: {
+    backgroundColor: 'red',
+    padding: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  finishButtonText: {
+    color: 'white',
+    fontSize: 16,
   },
 });
 
