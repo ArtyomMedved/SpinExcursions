@@ -9,6 +9,9 @@ import MapViewDirections from 'react-native-maps-directions';
 import uuid from 'uuid-js';
 import { router } from 'expo-router';
 
+const SECRET_KEY = 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY';
+const SHOP_ID = '401474';  // Замените 'your_shop_id' на ваш реальный магазин ID
+
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
 const LATITUDE_DELTA = 0.0422;
@@ -206,8 +209,8 @@ const MapScreen = () => {
   const confirmFinishTrip = async () => {
     setShowConfirmation(false);
     try {
-      const idempotenceKey = uuid.create().toString();
-
+      const idempotenceKey = uuid.create().toString(); // Генерируем новый UUID
+  
       const response = await axios.post('https://api.yookassa.ru/v3/payments', {
         amount: {
           value: earnings.toString(),
@@ -215,7 +218,7 @@ const MapScreen = () => {
         },
         confirmation: {
           type: 'redirect',
-          return_url: 'https://ya.ru/?clid=1955454&win=644',
+          return_url: 'spinexapp://home', // Убедитесь, что это deep link вашего приложения
         },
         capture: true,
         description: 'Оплата поездки',
@@ -225,12 +228,18 @@ const MapScreen = () => {
           'Idempotence-Key': idempotenceKey,
         },
         auth: {
-          username: '401474',
-          password: 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY',
+          username: SHOP_ID,
+          password: SECRET_KEY,
         },
       });
-      Alert.alert('Успешно', 'Оплата прошла успешно');
-      router.push("(menu)")
+  
+      console.log('Payment response:', response.data);
+      const paymentUrl = response.data.confirmation.confirmation_url; // Это URL для переадресации, если нужно
+  
+      // После успешного платежа можно выполнить дополнительные действия
+      // Например, переход на другой экран
+      navigation.push('PaymentWebView', { url: paymentUrl });
+  
     } catch (error) {
       console.error('Ошибка при оплате', error);
       Alert.alert('Ошибка', 'Не удалось завершить оплату. Попробуйте еще раз.');

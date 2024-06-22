@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Button, Image, Alert, Linking } from 'react-native';
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Button, Image, Alert } from 'react-native';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import uuid from 'uuid-js'; // Используем uuid-js для генерации UUID
+import uuid from 'uuid-js';
+import { Linking } from 'react-native';
+import urlParse from 'url-parse';
 
 const YOOKASSA_API_URL = 'https://api.yookassa.ru/v3/payments';
 const SECRET_KEY = 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY';
@@ -17,24 +19,28 @@ export default function LocationDetailsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
 
   const scooters = [
-    { id: '1', name: 'Скутер 1', image: require('/Users/artemmedvedev/Desktop/SpinExcursions/assets/scooter.png') },
-    { id: '2', name: 'Скутер 2', image: require('/Users/artemmedvedev/Desktop/SpinExcursions/assets/scooter.png') },
-    { id: '3', name: 'Скутер 3', image: require('/Users/artemmedvedev/Desktop/SpinExcursions/assets/scooter.png') },
-    { id: '4', name: 'Скутер 4', image: require('/Users/artemmedvedev/Desktop/SpinExcursions/assets/scooter.png') },
+    { id: '1', name: 'Scooter 1', image: require('../assets/scooter.png') },
+    { id: '2', name: 'Scooter 2', image: require('../assets/scooter.png') },
+    { id: '3', name: 'Scooter 3', image: require('../assets/scooter.png') },
+    { id: '4', name: 'Scooter 4', image: require('../assets/scooter.png') },
   ];
 
   useEffect(() => {
     const handleDeepLink = async (event) => {
-      let data = await Linking.parse(event.url);
-      if (data && data.scheme === 'spinexapp' && data.host === 'callback') {
-        // Перейти на экран карты
-        router.push('rentmap');
+      try {
+        const parsedUrl = urlParse(event.url, true);
+        const { protocol, host } = parsedUrl;
+
+        if (protocol === 'spinexapp:' && host === 'callback') {
+          navigation.push('rentmap');
+        }
+      } catch (error) {
+        console.error('Error handling deep link:', error);
       }
     };
 
-    Linking.addEventListener('url', handleDeepLink);
+    const linkingEventListener = Linking.addEventListener('url', handleDeepLink);
 
-    // Обработчик для открытия URL сразу при запуске приложения
     Linking.getInitialURL().then((url) => {
       if (url) {
         handleDeepLink({ url });
@@ -42,9 +48,9 @@ export default function LocationDetailsScreen() {
     });
 
     return () => {
-      Linking.removeEventListener('url', handleDeepLink);
+      linkingEventListener.remove();
     };
-  }, []);
+  }, [navigation]);
 
   const handleScooterPress = (scooter) => {
     setSelectedScooter(scooter);
@@ -53,7 +59,7 @@ export default function LocationDetailsScreen() {
 
   const handleRentPress = async () => {
     try {
-      const idempotenceKey = uuid.create().toString(); // Генерируем новый UUID
+      const idempotenceKey = uuid.create().toString();
 
       const response = await axios.post(YOOKASSA_API_URL, {
         amount: {
@@ -65,7 +71,7 @@ export default function LocationDetailsScreen() {
           return_url: 'spinexapp://callback'
         },
         capture: true,
-        description: `Аренда ${selectedScooter.name}`,
+        description: `Rent ${selectedScooter.name}`,
       }, {
         auth: {
           username: SHOP_ID,
@@ -77,14 +83,12 @@ export default function LocationDetailsScreen() {
         },
       });
 
-      console.log('Payment response:', response.data);
-
       const paymentUrl = response.data.confirmation.confirmation_url;
       setModalVisible(false);
       navigation.push('PaymentWebView', { url: paymentUrl });
     } catch (error) {
       console.error('Error creating payment:', error);
-      Alert.alert('Ошибка', 'Не удалось создать платеж');
+      Alert.alert('Error', 'Failed to create payment');
     }
   };
 
@@ -102,7 +106,7 @@ export default function LocationDetailsScreen() {
       <Text style={styles.street}>{street}</Text>
       <Text style={styles.description}>{description}</Text>
       <View style={styles.scooters}>
-        <Text style={styles.sectionTitle}>Список самокатов</Text>
+        <Text style={styles.sectionTitle}>Scooter List</Text>
         <FlatList
           data={scooters}
           renderItem={renderItem}
@@ -119,10 +123,10 @@ export default function LocationDetailsScreen() {
         >
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Вы выбрали {selectedScooter.name}</Text>
+              <Text style={styles.modalTitle}>You selected {selectedScooter.name}</Text>
               <Image source={selectedScooter.image} style={styles.modalImage} />
-              <Button title="Арендовать самокат" onPress={handleRentPress} color="#4CAF50" />
-              <Button title="Отмена" onPress={() => setModalVisible(false)} color="#F44336" />
+              <Button title="Rent Scooter" onPress={handleRentPress} color="#4CAF50" />
+              <Button title="Cancel" onPress={() => setModalVisible(false)} color="#F44336" />
             </View>
           </View>
         </Modal>

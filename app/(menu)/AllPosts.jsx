@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, FlatList, Image, StyleSheet, SafeAreaView } from 'react-native';
 import { Card, Text, TextInput, Button, IconButton, Avatar } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 // Компонент для отображения отдельного комментария
 const Comment = ({ comment }) => (
@@ -23,10 +22,20 @@ const Post = ({ post, onLike, onDislike, onAddComment, onDeletePost }) => {
     }
   };
 
+  // Проверка наличия данных пользователя перед использованием
+  const userPicture = post.user && post.user.picture ? post.user.picture : null;
+
   return (
     <Card style={styles.post}>
       {post.image && <Image source={{ uri: post.image }} style={styles.postImage} />}
       <Card.Content>
+        <View style={styles.userInfo}>
+          {userPicture && <Image source={{ uri: userPicture }} style={styles.userImage} />}
+          <View style={styles.userInfoText}>
+            <Text style={styles.userName}>{post.user ? post.user.name : 'Unknown User'}</Text>
+            <Text style={styles.userEmail}>{post.user ? post.user.email : 'No Email'}</Text>
+          </View>
+        </View>
         <Text style={styles.postText}>{post.text}</Text>
       </Card.Content>
       <Card.Actions style={styles.postActions}>
@@ -111,13 +120,11 @@ const AllPostsScreen = () => {
             liked: false,
           };
         } else {
-          const newLikes = post.likes + 1;
-          const newDislikes = post.disliked ? post.dislikes - 1 : post.dislikes;
           return {
             ...post,
-            likes: newLikes,
-            dislikes: newDislikes,
+            likes: post.likes + 1,
             liked: true,
+            dislikes: post.disliked ? post.dislikes - 1 : post.dislikes,
             disliked: false,
           };
         }
@@ -139,13 +146,11 @@ const AllPostsScreen = () => {
             disliked: false,
           };
         } else {
-          const newDislikes = post.dislikes + 1;
-          const newLikes = post.liked ? post.likes - 1 : post.likes;
           return {
             ...post,
-            dislikes: newDislikes,
-            likes: newLikes,
+            dislikes: post.dislikes + 1,
             disliked: true,
+            likes: post.liked ? post.likes - 1 : post.likes,
             liked: false,
           };
         }
@@ -160,12 +165,13 @@ const AllPostsScreen = () => {
   const handleAddComment = (postId, commentText) => {
     const updatedPosts = posts.map(post => {
       if (post.id === postId) {
+        const newComment = {
+          id: Date.now().toString(),
+          text: commentText,
+        };
         return {
           ...post,
-          comments: [
-            ...post.comments,
-            { id: `${post.comments.length + 1}`, text: commentText },
-          ],
+          comments: [...post.comments, newComment],
         };
       }
       return post;
@@ -174,15 +180,15 @@ const AllPostsScreen = () => {
     savePosts(updatedPosts);
   };
 
+  // Функция для удаления поста
   const handleDeletePost = (postId) => {
     const updatedPosts = posts.filter(post => post.id !== postId);
-    setPosts(updatedPosts); // Удаление поста из состояния
-    savePosts(updatedPosts); // Сохранение обновленных постов в AsyncStorage
+    setPosts(updatedPosts);
+    savePosts(updatedPosts);
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.header}>Все Посты</Text>
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -203,22 +209,43 @@ const AllPostsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-  },
-  header: {
-    fontSize: 24,
-    marginBottom: 20,
-    left: 20,
+    backgroundColor: '#f0f0f0',
+    padding: 10,
   },
   post: {
-    marginBottom: 20,
+    marginBottom: 15,
+    borderRadius: 10,
+    overflow: 'hidden',
+    elevation: 2,
   },
   postImage: {
     width: '100%',
     height: 200,
   },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  userImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  userInfoText: {
+    flexDirection: 'column',
+  },
+  userName: {
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  userEmail: {
+    color: 'grey',
+  },
   postText: {
     marginBottom: 10,
+    fontSize: 16,
   },
   postActions: {
     flexDirection: 'row',
@@ -227,13 +254,13 @@ const styles = StyleSheet.create({
   comment: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 5,
   },
   commentAvatar: {
     marginRight: 10,
   },
   commentText: {
-    flex: 1,
+    fontSize: 14,
   },
   commentInput: {
     marginBottom: 10,
