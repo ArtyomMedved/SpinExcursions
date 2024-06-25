@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Button, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, Button, Image, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import uuid from 'uuid-js';
 import { Linking } from 'react-native';
 import urlParse from 'url-parse';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import PushNotification from 'react-native-push-notification';
+import PushNotificationIOS from '@react-native-community/push-notification-ios'; // Импортируем библиотеку уведомлений для iOS
 
 const YOOKASSA_API_URL = 'https://api.yookassa.ru/v3/payments';
 const SECRET_KEY = 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY';
-const SHOP_ID = '401474';  // Замените 'your_shop_id' на ваш реальный магазин ID
+const SHOP_ID = '401474';
 
 export default function LocationDetailsScreen() {
   const { title, street, description } = useLocalSearchParams();
@@ -17,6 +20,7 @@ export default function LocationDetailsScreen() {
 
   const [selectedScooter, setSelectedScooter] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [paymentId, setPaymentId] = useState(null);
 
   const scooters = [
     { id: '1', name: 'Scooter 1', image: require('../assets/scooter.png') },
@@ -26,12 +30,49 @@ export default function LocationDetailsScreen() {
   ];
 
   useEffect(() => {
+    PushNotification.configure({
+      onNotification: function (notification) {
+        console.log('LOCAL NOTIFICATION ==>', notification);
+        notification.finish(PushNotificationIOS.FetchResult.NoData);
+      },
+      requestPermissions: Platform.OS === 'ios'
+    });
+
     const handleDeepLink = async (event) => {
       try {
         const parsedUrl = urlParse(event.url, true);
         const { protocol, host } = parsedUrl;
 
-        if (protocol === 'spinexapp:' && host === 'callback') {
+        if (protocol === 'spinexapp:' && host === 'callback' && paymentId) {
+          const paymentInfo = await axios.get(`${YOOKASSA_API_URL}/${paymentId}`, {
+            auth: {
+              username: SHOP_ID,
+              password: SECRET_KEY,
+            },
+          });
+
+          console.log('Payment info response:', paymentInfo.data);
+
+          const paymentMethodId = paymentInfo.data.payment_method ? paymentInfo.data.payment_method.id : null;
+
+          if (paymentMethodId) {
+            const user = await AsyncStorage.getItem('@user');
+            if (user) {
+              const userId = JSON.parse(user).id;
+              await axios.post('http://localhost:3000/save-payment-method', {
+                userId,
+                paymentMethodId,
+              });
+            } else {
+              console.warn('User not found in local storage');
+            }
+          } else {
+            console.warn('No payment_method in response');
+          }
+
+          // Вызов уведомления о успешной оплате
+          sendNotification(selectedScooter.name);
+
           navigation.push('rentmap');
         }
       } catch (error) {
@@ -50,7 +91,7 @@ export default function LocationDetailsScreen() {
     return () => {
       linkingEventListener.remove();
     };
-  }, [navigation]);
+  }, [navigation, paymentId, selectedScooter]);
 
   const handleScooterPress = (scooter) => {
     setSelectedScooter(scooter);
@@ -72,6 +113,7 @@ export default function LocationDetailsScreen() {
         },
         capture: true,
         description: `Rent ${selectedScooter.name}`,
+        save_payment_method: true,
       }, {
         auth: {
           username: SHOP_ID,
@@ -83,13 +125,25 @@ export default function LocationDetailsScreen() {
         },
       });
 
+      console.log('Payment creation response:', response.data);
+
       const paymentUrl = response.data.confirmation.confirmation_url;
+      const paymentId = response.data.id; // Save payment id for later use
+      setPaymentId(paymentId);
+
       setModalVisible(false);
       navigation.push('PaymentWebView', { url: paymentUrl });
     } catch (error) {
       console.error('Error creating payment:', error);
       Alert.alert('Error', 'Failed to create payment');
     }
+  };
+
+  const sendNotification = (scooterName) => {
+    PushNotification.localNotification({
+      title: "Оплата прошла успешно!",
+      message: `Самокат: ${scooterName}\nВремя аренды: 1 час`, // Замените на реальное время аренды
+    });
   };
 
   const renderItem = ({ item }) => (

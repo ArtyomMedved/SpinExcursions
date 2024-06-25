@@ -56,18 +56,37 @@ export default function Index() {
         return JSON.parse(data);
     };
 
-    const getUserInfo = async (token: string) => {
+    const logRegistration = async (user) => {
+        try {
+            await fetch('http://localhost:3000/log-registration', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(user),
+            });
+            console.log('Registration log sent');
+        } catch (error) {
+            console.error('Error logging registration:', error);
+        }
+    };
+    
+    const getUserInfo = async (token) => {
         if (!token) return;
         try {
             const response = await fetch("https://www.googleapis.com/userinfo/v2/me", {
                 headers: { Authorization: `Bearer ${token}` },
             });
-
+    
             const user = await response.json();
+            console.log('Fetched user info:', user); // Логирование полученной информации
             await AsyncStorage.setItem("@user", JSON.stringify(user));
             setUserInfo(user);
+    
+            // Log the registration
+            logRegistration(user);
         } catch (error) {
-            // Add your own error handler here
+            console.error('Error fetching user info:', error);
         }
     };
 

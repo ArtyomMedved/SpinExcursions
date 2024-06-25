@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Image, Alert } from 'react-native';
+import { View, StyleSheet, Dimensions, TouchableOpacity, Text, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import Modal from 'react-native-modal';
 import * as Location from 'expo-location';
@@ -7,7 +7,6 @@ import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import MapViewDirections from 'react-native-maps-directions';
 import uuid from 'uuid-js';
-import { router } from 'expo-router';
 
 const SECRET_KEY = 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY';
 const SHOP_ID = '401474';  // Замените 'your_shop_id' на ваш реальный магазин ID
@@ -202,6 +201,46 @@ const MapScreen = () => {
     }
   };
 
+  const generatePedestrianRoute = async () => {
+    if (!location) {
+      Alert.alert('Location Error', 'Could not determine your current location.');
+      return;
+    }
+
+    const randomAttraction = attractions[Math.floor(Math.random() * attractions.length)];
+    const { latitude, longitude } = randomAttraction.coordinates;
+
+    try {
+      const response = await axios.get(
+        `https://maps.googleapis.com/maps/api/directions/json?origin=${location.coords.latitude},${location.coords.longitude}&destination=${latitude},${longitude}&mode=walking&key=${GOOGLE_MAPS_APIKEY}`
+      );
+
+      if (response.data.status === 'OK') {
+        const { routes } = response.data;
+        if (routes.length > 0) {
+          const { legs } = routes[0];
+          const { start_location, end_location } = legs[0];
+          setOrigin({
+            latitude: start_location.lat,
+            longitude: start_location.lng,
+          });
+          setDestination({
+            latitude: end_location.lat,
+            longitude: end_location.lng,
+          });
+          setIsRouteVisible(true);
+        } else {
+          Alert.alert('Route Error', 'No pedestrian route found.');
+        }
+      } else {
+        Alert.alert('Route Error', 'Failed to fetch pedestrian route.');
+      }
+    } catch (error) {
+      console.error('Error fetching route data', error);
+      Alert.alert('Error', 'Failed to fetch route data. Please try again.');
+    }
+  };
+
   const finishTrip = () => {
     setShowConfirmation(true);
   };
@@ -210,7 +249,7 @@ const MapScreen = () => {
     setShowConfirmation(false);
     try {
       const idempotenceKey = uuid.create().toString(); // Генерируем новый UUID
-  
+
       const response = await axios.post('https://api.yookassa.ru/v3/payments', {
         amount: {
           value: earnings.toString(),
@@ -232,14 +271,14 @@ const MapScreen = () => {
           password: SECRET_KEY,
         },
       });
-  
+
       console.log('Payment response:', response.data);
       const paymentUrl = response.data.confirmation.confirmation_url; // Это URL для переадресации, если нужно
-  
+
       // После успешного платежа можно выполнить дополнительные действия
       // Например, переход на другой экран
       navigation.push('PaymentWebView', { url: paymentUrl });
-  
+
     } catch (error) {
       console.error('Ошибка при оплате', error);
       Alert.alert('Ошибка', 'Не удалось завершить оплату. Попробуйте еще раз.');
@@ -282,22 +321,24 @@ const MapScreen = () => {
             onPress={() => handleMarkerPress(attraction)}
           />
         ))}
-        {isRouteVisible && location && destination && (
+        {isRouteVisible && origin && destination && (
           <MapViewDirections
-            origin={{
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            }}
+            origin={origin}
             destination={destination}
             apikey={GOOGLE_MAPS_APIKEY}
             strokeWidth={5}
             strokeColor="blue"
+            mode='WALKING'
           />
         )}
       </MapView>
 
       <TouchableOpacity style={styles.locationButton} onPress={goToCurrentLocation}>
-      <Text style={styles.locationButtonText}>Где я?</Text>
+        <Text style={styles.locationButtonText}>Где я?</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.generateRouteButton} onPress={generatePedestrianRoute}>
+        <Text style={styles.generateRouteButtonText}>Рандомый маршрут</Text>
       </TouchableOpacity>
 
       <View style={styles.weatherContainer}>
@@ -342,13 +383,25 @@ const styles = StyleSheet.create({
   },
   locationButton: {
     position: 'absolute',
-    bottom: 50,
+    bottom: 80,
     right: 20,
     backgroundColor: 'blue',
     padding: 10,
     borderRadius: 20,
   },
   locationButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  generateRouteButton: {
+    position: 'absolute',
+    bottom: 40,
+    right: 20,
+    backgroundColor: 'green',
+    padding: 10,
+    borderRadius: 20,
+  },
+  generateRouteButtonText: {
     color: 'white',
     fontWeight: 'bold',
   },
@@ -387,26 +440,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   finishButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 20,
-    marginBottom: 10,
-  },
-  closeButton: {
-    marginTop: 10,
-    backgroundColor: 'blue',
-    padding: 10,
-    borderRadius: 10,
-  },
-  closeButtonText: {
     color: 'white',
     fontWeight: 'bold',
   },
