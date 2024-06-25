@@ -326,7 +326,7 @@ const MapScreen = () => {
             origin={origin}
             destination={destination}
             apikey={GOOGLE_MAPS_APIKEY}
-            strokeWidth={5}
+            strokeWidth={2}
             strokeColor="blue"
             mode='WALKING'
           />

@@ -4,6 +4,8 @@ import { Text, TextInput, Button } from 'react-native-paper';
 import { launchImageLibrary } from 'react-native-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import axios from 'axios';
+import { Platform } from 'react-native';
 
 const CreatePostScreen = () => {
   const [newPostText, setNewPostText] = useState('');
@@ -15,45 +17,57 @@ const CreatePostScreen = () => {
     if (newPostText.trim() || selectedImage) {
       const userInfo = await AsyncStorage.getItem("@user");
       const user = userInfo ? JSON.parse(userInfo) : null;
-
+  
       const newPost = {
-        id: Date.now().toString(),
         text: newPostText,
         image: selectedImage,
         likes: 0,
         dislikes: 0,
-        comments: [],
         author: user ? { name: user.name, email: user.email, picture: user.picture } : null,
       };
-
-      AsyncStorage.getItem('posts')
-        .then(storedPosts => {
-          let posts = [];
-          if (storedPosts) {
-            posts = JSON.parse(storedPosts);
-          }
-          const updatedPosts = [...posts, newPost];
-          AsyncStorage.setItem('posts', JSON.stringify(updatedPosts))
-            .then(() => {
-              setUpdateTrigger(prev => !prev);
-            })
-            .catch(error => {
-              console.error('Failed to save updated posts', error);
-            });
-        })
-        .catch(error => {
-          console.error('Failed to add post', error);
-        });
-
+  
+      try {
+        await axios.post('http://localhost:3000/create-post', newPost);
+        setUpdateTrigger(prev => !prev);
+      } catch (error) {
+        console.error('Failed to save post on server', error);
+      }
+  
       setNewPostText('');
       setSelectedImage(null);
     }
   };
   
   const chooseImage = () => {
-    launchImageLibrary({ mediaType: 'photo' }, (response) => {
-      if (!response.didCancel && !response.error && response.assets && response.assets.length > 0) {
-        setSelectedImage(response.assets[0].uri);
+    launchImageLibrary({ mediaType: 'photo' }, async (response) => {
+      if (response && !response.didCancel && !response.error && response.assets && response.assets.length > 0) {
+        const localUri = response.assets[0].uri;
+  
+        // Преобразование file:// в http:// для iOS
+        let imageUrl = localUri;
+        if (Platform.OS === 'ios' && localUri.startsWith('file://')) {
+          try {
+            const formData = new FormData();
+            formData.append('image', {
+              uri: localUri,
+              type: response.assets[0].type,
+              name: response.assets[0].fileName
+            });
+  
+            const uploadResponse = await axios.post('http://localhost:3000/upload-image', formData, {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              }
+            });
+  
+            imageUrl = uploadResponse.data.url; // Получаем URL изображения с сервера
+          } catch (error) {
+            console.error('Failed to upload image to server:', error);
+            return;
+          }
+        }
+  
+        setSelectedImage(imageUrl); // Устанавливаем ссылку в state
       }
     });
   };
