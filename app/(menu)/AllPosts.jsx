@@ -4,6 +4,18 @@ import { Card, Text, IconButton } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Post = ({ post, onLike, onDislike }) => {
+  const handleLike = () => {
+    if (!post.liked && !post.loading) {
+      onLike(post.id);
+    }
+  };
+
+  const handleDislike = () => {
+    if (!post.disliked && !post.loading) {
+      onDislike(post.id);
+    }
+  };
+
   return (
     <Card style={styles.post}>
       <View style={styles.cardContentWrapper}>
@@ -23,16 +35,16 @@ const Post = ({ post, onLike, onDislike }) => {
             icon="thumb-up"
             color={post.liked ? 'blue' : 'grey'}
             size={24}
-            onPress={() => onLike(post.id)}
-            disabled={post.loading} // Отключаем кнопку лайка при загрузке
+            onPress={handleLike}
+            disabled={post.liked || post.loading} // Отключаем кнопку лайка, если уже лайкнут или идет загрузка
           />
           <Text>{post.likes}</Text>
           <IconButton
             icon="thumb-down"
             color={post.disliked ? 'red' : 'grey'}
             size={24}
-            onPress={() => onDislike(post.id)}
-            disabled={post.loading} // Отключаем кнопку дизлайка при загрузке
+            onPress={handleDislike}
+            disabled={post.disliked || post.loading} // Отключаем кнопку дизлайка, если уже дизлайкнут или идет загрузка
           />
           <Text>{post.dislikes}</Text>
           {post.loading && <ActivityIndicator size="small" color="#0000ff" />}
@@ -44,7 +56,9 @@ const Post = ({ post, onLike, onDislike }) => {
 
 const AllPostsScreen = () => {
   const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true); // Состояние загрузки данных
+  const [loading, setLoading] = useState(true);
+  const [likedPosts, setLikedPosts] = useState(new Set());
+  const [dislikedPosts, setDislikedPosts] = useState(new Set()); // Множество для отслеживания дизлайкнутых постов
 
   useEffect(() => {
     const loadPosts = async () => {
@@ -54,26 +68,30 @@ const AllPostsScreen = () => {
           throw new Error('Failed to fetch posts');
         }
         const data = await response.json();
-        setPosts(data);
-        setLoading(false); // Устанавливаем loading в false после загрузки данных
+        setPosts(data.map(post => ({
+          ...post,
+          liked: likedPosts.has(post.id),
+          disliked: dislikedPosts.has(post.id), // Устанавливаем флаг дизлайка
+          loading: false,
+        })));
+        setLoading(false);
       } catch (error) {
         console.error('Failed to load posts', error);
-        setLoading(false); // Устанавливаем loading в false в случае ошибки
+        setLoading(false);
       }
     };
 
     loadPosts();
-  }, []);
+  }, [likedPosts, dislikedPosts]); // Зависимость от likedPosts и dislikedPosts
 
   const handleLike = async (postId) => {
     try {
-      // Устанавливаем loading для поста с указанным postId
       setPosts(prevPosts =>
         prevPosts.map(post =>
           post.id === postId ? { ...post, loading: true } : post
         )
       );
-  
+
       const response = await fetch(`http://localhost:3000/posts/${postId}/like`, {
         method: 'POST',
       });
@@ -81,10 +99,9 @@ const AllPostsScreen = () => {
         throw new Error('Failed to like post');
       }
       const updatedPost = await response.json();
-      await updatePostInList(updatedPost); // Обновляем пост в списке после успешного лайка
+      setLikedPosts(prevLikedPosts => new Set([...prevLikedPosts, updatedPost.id]));
     } catch (error) {
       console.error('Error liking post:', error);
-      // Сброс loading и восстановление предыдущего состояния постов в случае ошибки
       setPosts(prevPosts =>
         prevPosts.map(post =>
           post.id === postId ? { ...post, loading: false } : post
@@ -92,28 +109,14 @@ const AllPostsScreen = () => {
       );
     }
   };
-  
-  const updatePostInList = async (updatedPost) => {
-    try {
-      // Имитируем задержку перед обновлением состояния
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
-          post.id === updatedPost.id ? updatedPost : post
-        )
-      );
-    } catch (error) {
-      console.error('Error updating post in list:', error);
-    }
-  };
 
   const handleDislike = async (postId) => {
     try {
-      // Локальное обновление состояния поста для мгновенного отображения изменений
-      const updatedPosts = posts.map(post =>
-        post.id === postId ? { ...post, dislikes: post.dislikes + 1, disliked: true, loading: true } : post
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId ? { ...post, loading: true } : post
+        )
       );
-      setPosts(updatedPosts);
 
       const response = await fetch(`http://localhost:3000/posts/${postId}/dislike`, {
         method: 'POST',
@@ -122,9 +125,27 @@ const AllPostsScreen = () => {
         throw new Error('Failed to dislike post');
       }
       const updatedPost = await response.json();
-      await updatePostInList(updatedPost); // Обновляем пост в списке после успешного дизлайка
+      setDislikedPosts(prevDislikedPosts => new Set([...prevDislikedPosts, updatedPost.id]));
     } catch (error) {
       console.error('Error disliking post:', error);
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId ? { ...post, loading: false } : post
+        )
+      );
+    }
+  };
+
+  const updatePostInList = async (updatedPost) => {
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === updatedPost.id ? updatedPost : post
+        )
+      );
+    } catch (error) {
+      console.error('Error updating post in list:', error);
     }
   };
 
@@ -143,7 +164,7 @@ const AllPostsScreen = () => {
         keyExtractor={(item) => item.id?.toString()}
         renderItem={({ item }) => (
           <Post
-            post={{ ...item, loading: false }} // Передаем состояние загрузки для конкретного поста
+            post={{ ...item, loading: false }}
             onLike={handleLike}
             onDislike={handleDislike}
           />
