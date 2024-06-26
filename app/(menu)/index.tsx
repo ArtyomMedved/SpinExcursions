@@ -58,7 +58,7 @@ export default function Index() {
 
     const logRegistration = async (user) => {
         try {
-            await fetch('http://localhost:3000/log-registration', {
+            await fetch('http://192.168.1.97:3000/log-registration', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

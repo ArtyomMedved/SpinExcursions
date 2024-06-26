@@ -59,7 +59,7 @@ export default function LocationDetailsScreen() {
             const user = await AsyncStorage.getItem('@user');
             if (user) {
               const userId = JSON.parse(user).id;
-              await axios.post('http://localhost:3000/save-payment-method', {
+              await axios.post('http://192.168.1.97:3000/save-payment-method', {
                 userId,
                 paymentMethodId,
               });

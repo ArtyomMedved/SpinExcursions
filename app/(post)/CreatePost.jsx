@@ -27,7 +27,7 @@ const CreatePostScreen = () => {
       };
   
       try {
-        await axios.post('http://localhost:3000/create-post', newPost);
+        await axios.post('http://192.168.1.97:3000/create-post', newPost);
         setUpdateTrigger(prev => !prev);
       } catch (error) {
         console.error('Failed to save post on server', error);
@@ -54,7 +54,7 @@ const CreatePostScreen = () => {
               name: response.assets[0].fileName
             });
   
-            const uploadResponse = await axios.post('http://localhost:3000/upload-image', formData, {
+            const uploadResponse = await axios.post('http://192.168.1.97:3000/upload-image', formData, {
               headers: {
                 'Content-Type': 'multipart/form-data'
               }

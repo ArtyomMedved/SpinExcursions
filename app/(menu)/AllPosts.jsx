@@ -63,7 +63,7 @@ const AllPostsScreen = () => {
   useEffect(() => {
     const loadPosts = async () => {
       try {
-        const response = await fetch('http://localhost:3000/posts');
+        const response = await fetch('http://192.168.1.97:3000/posts');
         if (!response.ok) {
           throw new Error('Failed to fetch posts');
         }
@@ -92,7 +92,7 @@ const AllPostsScreen = () => {
         )
       );
 
-      const response = await fetch(`http://localhost:3000/posts/${postId}/like`, {
+      const response = await fetch(`http://192.168.1.97:3000/posts/${postId}/like`, {
         method: 'POST',
       });
       if (!response.ok) {
@@ -118,7 +118,7 @@ const AllPostsScreen = () => {
         )
       );
 
-      const response = await fetch(`http://localhost:3000/posts/${postId}/dislike`, {
+      const response = await fetch(`http://192.168.1.97:3000/posts/${postId}/dislike`, {
         method: 'POST',
       });
       if (!response.ok) {
