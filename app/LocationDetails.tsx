@@ -4,11 +4,11 @@ import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import uuid from 'uuid-js';
-import { Linking } from 'react-native';
 import urlParse from 'url-parse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PushNotification from 'react-native-push-notification';
 import PushNotificationIOS from '@react-native-community/push-notification-ios'; // Импортируем библиотеку уведомлений для iOS
+import { Linking } from 'react-native';
 
 const YOOKASSA_API_URL = 'https://api.yookassa.ru/v3/payments';
 const SECRET_KEY = 'test_AuJsuu_1Akmyg3Vzy7DCq-ob_jhDlAR-jqiIZep0ViY';
@@ -30,6 +30,7 @@ export default function LocationDetailsScreen() {
   ];
 
   useEffect(() => {
+    // Push notification configuration
     PushNotification.configure({
       onNotification: function (notification) {
         console.log('LOCAL NOTIFICATION ==>', notification);
@@ -38,6 +39,7 @@ export default function LocationDetailsScreen() {
       requestPermissions: Platform.OS === 'ios'
     });
 
+    // Deep linking handler
     const handleDeepLink = async (event) => {
       try {
         const parsedUrl = urlParse(event.url, true);
@@ -70,9 +72,6 @@ export default function LocationDetailsScreen() {
             console.warn('No payment_method in response');
           }
 
-          // Вызов уведомления о успешной оплате
-          sendNotification(selectedScooter.name);
-
           navigation.push('rentmap');
         }
       } catch (error) {
@@ -98,7 +97,7 @@ export default function LocationDetailsScreen() {
     setModalVisible(true);
   };
 
-  const handleRentPress = async () => {
+  const handleRentPress = async (useCoins) => {
     try {
       const idempotenceKey = uuid.create().toString();
 
@@ -132,18 +131,39 @@ export default function LocationDetailsScreen() {
       setPaymentId(paymentId);
 
       setModalVisible(false);
-      navigation.push('PaymentWebView', { url: paymentUrl });
+
+      if (useCoins) {
+        const user = await AsyncStorage.getItem('@user');
+        if (user) {
+          const userId = JSON.parse(user).id;
+
+          // Check user's coin balance
+          const coinsResponse = await axios.get(`http://192.168.1.97:3000/coins/${userId}`);
+          const currentCoins = coinsResponse.data.coins;
+
+          if (currentCoins >= 100) {
+            // Deduct coins from user's account
+            await axios.post(`http://192.168.1.97:3000/coins/${userId}`, {
+              coins: currentCoins - 100
+            });
+
+            // Notify user and navigate to rentmap
+            Alert.alert('Оплата', 'Оплата прошла успешно, с вашего счета было списано 100 коинов');
+            navigation.push('rentmap');
+          } else {
+            Alert.alert('Ошибка', 'Недостаточно коинов чтобы оплатить старт аренды');
+          }
+        } else {
+          console.warn('User not found in local storage');
+        }
+      } else {
+        // Navigate to YooKassa payment webview
+        navigation.push('PaymentWebView', { url: paymentUrl });
+      }
     } catch (error) {
       console.error('Error creating payment:', error);
       Alert.alert('Error', 'Failed to create payment');
     }
-  };
-
-  const sendNotification = (scooterName) => {
-    PushNotification.localNotification({
-      title: "Оплата прошла успешно!",
-      message: `Самокат: ${scooterName}\nВремя аренды: 1 час`, // Замените на реальное время аренды
-    });
   };
 
   const renderItem = ({ item }) => (
@@ -179,7 +199,8 @@ export default function LocationDetailsScreen() {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>You selected {selectedScooter.name}</Text>
               <Image source={selectedScooter.image} style={styles.modalImage} />
-              <Button title="Rent Scooter" onPress={handleRentPress} color="#4CAF50" />
+              <Button title="Арендовать" onPress={() => handleRentPress(false)} color="#4CAF50" />
+              <Button title="Арендовать коинами (100)" onPress={() => handleRentPress(true)} color="#4CAF50" />
               <Button title="Cancel" onPress={() => setModalVisible(false)} color="#F44336" />
             </View>
           </View>

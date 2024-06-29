@@ -312,6 +312,7 @@ const MapScreen = () => {
         scrollEnabled={true}
         pitchEnabled={true}
         rotateEnabled={true}
+        mapType="satellite"
       >
         {attractions.map((attraction) => (
           <Marker
@@ -338,7 +339,7 @@ const MapScreen = () => {
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.generateRouteButton} onPress={generatePedestrianRoute}>
-        <Text style={styles.generateRouteButtonText}>Рандомый маршрут</Text>
+        <Text style={styles.generateRouteButtonText}>Построить маршрут</Text>
       </TouchableOpacity>
 
       <View style={styles.weatherContainer}>

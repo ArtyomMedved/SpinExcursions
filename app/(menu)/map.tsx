@@ -155,6 +155,7 @@ const MapScreen = () => {
         scrollEnabled={true}
         pitchEnabled={true}
         rotateEnabled={true}
+        mapType="satellite"
       >
         {markers.map((marker) => (
           <Marker
